@@ -1,6 +1,70 @@
 {
   "common": {
   },
+  "processor": {
+      "CountVectorizer": [
+          {
+            "max_df": [
+              0.8, 0.6
+            ]
+          },
+          {
+            "min_df": [
+              3, 5, 0.1, 0.2
+            ]
+          },
+          {
+            "ngram_range": [
+              "(1,1)",
+              "(1,2)"
+            ]
+          }
+        ],
+        "TfidfVectorizer": [
+          {
+            "max_df": [
+              0.8, 0.6
+            ]
+          },
+          {
+            "min_df": [
+              3, 5, 0.1, 0.2
+            ]
+          },
+          {
+            "ngram_range": [
+              "(1,1)",
+              "(1,2)"
+            ]
+          }
+        ]
+  },
+  "topicmodels": {
+      "NMF": [
+          {
+            "n_components": [
+              5, 10, 15, 20, 25, 30
+            ]
+          },
+          {
+            "alpha": [
+              0.1
+            ]
+          },
+          {
+            "l1_ratio": [
+              0.5
+            ]
+          }
+        ],
+        "LatentDirichletAllocation": [
+          {
+            "n_components": [
+              5, 10, 15, 20, 25, 30
+            ]
+          }
+        ]
+  },
   "classifiers": {
     "PassiveAggressiveClassifier": [
       {
@@ -82,6 +146,11 @@
       }
     ],
     "LogisticRegression": [
+      {
+        "solver": [
+          "lbfgs"
+        ]
+      },
       {
         "penalty": [
           "l1",

@@ -1,6 +1,6 @@
-FROM tensorflow/tensorflow:latest-gpu-py3
+FROM tensorflow/tensorflow:1.12.0-gpu-py3
 
-MAINTAINER han.xiao@zalando.de
+MAINTAINER xinyi.zeng@connect.polyu.hk
 
 WORKDIR /
 
@@ -15,5 +15,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 ADD . /
 
-ENTRYPOINT python ./app.py $ARGUMENTS
-#ENTRYPOINT python ./benchmark/convnet.py
+#ENTRYPOINT python ./app.py $ARGUMENTS
+ENTRYPOINT python ./benchmark/runner.py

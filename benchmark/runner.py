@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 import itertools
 import json
 import random
@@ -6,8 +8,9 @@ from ast import literal_eval as make_tuple
 from multiprocessing import Process, Queue
 
 import numpy as np
+import pandas as pd
 import psutil
-from sklearn import preprocessing
+
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier, Perceptron, PassiveAggressiveClassifier
@@ -17,21 +20,54 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 from sklearn.utils import shuffle
+from sklearn.metrics import confusion_matrix
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.base import BaseEstimator
+from sklearn.decomposition import NMF, LatentDirichletAllocation
 
-from configs import LOGGER, DATA_DIR, BASELINE_PATH, JSON_LOGGER
-from utils import mnist_reader
+import os
+print(os.listdir()) # check docker container
+
+from configs import BASELINE_PATH, LOGGER, JSON_LOGGER
 from utils.helper import now_int
 
+class DenseTransformer(BaseEstimator):
+    def __init__(self, return_copy=True):
+        self.return_copy = return_copy
+        self.is_fitted = False
+
+    def transform(self, X, y=None, **fit_params):
+        from scipy.sparse import issparse
+        if issparse(X):
+            return X.toarray()
+        elif self.return_copy:
+            return X.copy()
+        else:
+            return X
+    
+    def fit(self, X, y=None, **fit_params):
+        self.is_fitted = True
+        return self
+
+    def fit_transform(self, X, y=None, **fit_params):
+        return self.transform(X=X, y=y)
+
+    
 
 class PredictJob:
-    def __init__(self, clf_name, clf_par, num_repeat: int = 1):
+    def __init__(self, processor_name, processor_par, clf_name, clf_par, topic_name, topic_par, num_repeat: int = 1):
+        self.topic_name = topic_name
+        self.topic_par = topic_par
+        self.processor_name = processor_name
+        self.processor_par = processor_par
         self.clf_name = clf_name
         self.clf_par = clf_par
         self.result = None
         self.start_time = None
         self.done_time = None
         self.num_repeat = num_repeat
-
 
 class JobWorker(Process):
     def __init__(self, pending_q: Queue) -> None:
@@ -42,22 +78,30 @@ class JobWorker(Process):
         scaler = preprocessing.StandardScaler().fit(X)
         self.X = scaler.transform(X)
         self.Xt = scaler.transform(Xt)
-        # self.X = X[:100]
-        # self.Y = self.Y[:100]
 
     def run(self) -> None:
         while True:
             cur_job = self.pending_q.get()  # type: PredictJob
 
-            LOGGER.info('job received! repeat: %d classifier: "%s" parameter: "%s"' % (cur_job.num_repeat,
+            LOGGER.info('job received! repeat: %d classifier: "%s" parameter: "%s" processor: "%s" parameter: "%s" topicmodel: "%s" parameter: "%s"' % (cur_job.num_repeat,
                                                                                        cur_job.clf_name,
-                                                                                       cur_job.clf_par))
+                                                                                       cur_job.clf_par,
+                                                                                       cur_job.processor_name,
+                                                                                       cur_job.processor_par,
+                                                                                       cur_job.topic_name,
+                                                                                       cur_job.topic_par))
             if cur_job.clf_name in globals():
                 try:
                     acc = []
                     cur_job.start_time = now_int()
                     for j in range(cur_job.num_repeat):
-                        cur_score = self.get_accuracy(cur_job.clf_name, cur_job.clf_par, j)
+                        cur_score = self.get_accuracy(cur_job.processor_name, 
+                                                      cur_job.processor_par,
+                                                      cur_job.clf_name, 
+                                                      cur_job.clf_par,
+                                                      cur_job.topic_name,
+                                                      cur_job.topic_par,
+                                                      j)
                         acc.append(cur_score)
                         if len(acc) == 2 and abs(acc[0] - cur_score) < 1e-3:
                             LOGGER.info('%s is invariant to training data shuffling, will stop repeating!' %
@@ -67,6 +111,10 @@ class JobWorker(Process):
                     test_info = {
                         'name': cur_job.clf_name,
                         'parameter': cur_job.clf_par,
+                        'processor': cur_job.processor_name,
+                        'processor_para': cur_job.processor_par,
+                        'topic_model': cur_job.topic_name,
+                        'topic_para': cur_job.topic_par,
                         'score': acc,
                         'start_time': cur_job.start_time,
                         'done_time': cur_job.done_time,
@@ -79,26 +127,40 @@ class JobWorker(Process):
                     JSON_LOGGER.info(json.dumps(test_info, sort_keys=True))
 
                     LOGGER.info('done! acc: %0.3f (+/- %0.3f) repeated: %d classifier: "%s" '
-                                'parameter: "%s" ' % (np.array(acc).mean(),
+                                'parameter: "%s" processor: "%s" processor_para: "%s" '
+                                'topic_model: "%s" topicmodel_para: "%s" '% (np.array(acc).mean(),
                                                       np.array(acc).std() * 2,
                                                       len(acc),
                                                       cur_job.clf_name,
-                                                      cur_job.clf_par))
+                                                      cur_job.clf_par,
+                                                      cur_job.processor_name,
+                                                      cur_job.processor_par,
+                                                      cur_job.topic_name,
+                                                      cur_job.topic_par))
                 except Exception as e:
                     LOGGER.error('%s with %s failed! reason: %s' % (cur_job.clf_name, cur_job.clf_par, e))
             else:
                 LOGGER.error('Can not found "%s" in scikit-learn, missing import?' % cur_job.clf_name)
 
-    def get_accuracy(self, clf_name, clf_par, id):
+    def get_accuracy(self, processor_name, processor_par, clf_name, clf_par, topic_name, topic_par, id):
         start_time = time.clock()
-        clf = globals()[clf_name](**clf_par)
+#        clf = make_pipeline(preprocessing.StandardScaler(), svm.SVC(C=1))
         Xs, Ys = shuffle(self.X, self.Y)
-        cur_score = clf.fit(Xs, Ys).score(self.Xt, self.Yt)
+        clf = make_pipeline(globals()[processor_name](**processor_par), 
+                            DenseTransformer(), 
+                            globals()[topic_name](**topic_par),
+                            globals()[clf_name](**clf_par))
+        scores = cross_val_score(
+        clf, Xs, Ys, cv=5, scoring='f1_macro')
+        cur_score = scores.mean()
+#        cur_score = clf.fit(Xs, Ys).score(self.Xt, self.Yt)
         duration = time.clock() - start_time
-        LOGGER.info('#test: %d acc: %0.3f time: %.3fs classifier: "%s" parameter: "%s"' % (id, cur_score,
+        LOGGER.info('#test: %d acc: %0.3f time: %.3fs classifier: "%s" parameter: "%s" processor: "%s" processor_parameter: "%s"' % (id, cur_score,
                                                                                            duration,
                                                                                            clf_name,
-                                                                                           clf_par))
+                                                                                           clf_par,
+                                                                                           processor_name,
+                                                                                           processor_par))
         return cur_score
 
 
@@ -135,17 +197,17 @@ class JobManager:
         with open(fn) as fp:
             tmp = json.load(fp)
 
-        def get_par_comb(tmp, clf_name):
+        def get_par_comb(tmp, clf_type, clf_name):
             all_par_vals = list(itertools.product(*[self._parse_list(vv)
-                                                    for v in tmp['classifiers'][clf_name]
+                                                    for v in tmp[clf_type][clf_name]
                                                     for vv in v.values()]))
-            all_par_name = [vv for v in tmp['classifiers'][clf_name] for vv in v.keys()]
+            all_par_name = [vv for v in tmp[clf_type][clf_name] for vv in v.keys()]
             return [{all_par_name[idx]: vv for idx, vv in enumerate(v)} for v in all_par_vals]
 
-        result = [{v: vv} for v in tmp['classifiers'] for vv in get_par_comb(tmp, v)]
-        for v in result:
-            for vv in v.values():
-                vv.update(tmp['common'])
+        processor_result = [{v: vv} for v in tmp['processor'] for vv in get_par_comb(tmp, 'processor', v)]
+        clf_result = [{v: vv} for v in tmp['classifiers'] for vv in get_par_comb(tmp, 'classifiers', v)]
+        topicmodels = [{v: vv} for v in tmp['topicmodels'] for vv in get_par_comb(tmp, 'topicmodels', v)]
+        result = list(itertools.product(processor_result, clf_result, topicmodels))
         if self.do_shuffle:
             random.shuffle(result)
         return result
@@ -171,34 +233,28 @@ class JobManager:
         Ys = [j for j in range(10)]
         valid_jobs = []
         for v in all_tasks:
-            clf_name = list(v.keys())[0]
-            clf_par = list(v.values())[0]
+            processor_name = list(v[0].keys())[0]
+            processor_par = list(v[0].values())[0]
+            clf_name = list(v[1].keys())[0]
+            clf_par = list(v[1].values())[0]
+            topic_name = list(v[2].keys())[0]
+            topic_par = list(v[2].values())[0]
             total_clf += 1
             try:
-                globals()[clf_name](**clf_par).fit(Xs, Ys)
-                valid_jobs.append(PredictJob(clf_name, clf_par, self.num_repeat))
+                make_pipeline(globals()[processor_name](**processor_par), 
+                              DenseTransformer(), 
+                              globals()[topic_name](**topic_par),
+                              globals()[clf_name](**clf_par)).fit(Xs, Ys)
+                valid_jobs.append(PredictJob(processor_name, processor_par, 
+                                             clf_name, clf_par, 
+                                             topic_name, topic_par, 
+                                             self.num_repeat))
             except Exception as e:
                 failed_clf += 1
                 LOGGER.error('Can not create classifier "%s" with parameter "%s". Reason: %s' % (clf_name, clf_par, e))
         LOGGER.info('%d classifiers to test, %d fail to create!' % (total_clf, failed_clf))
         return valid_jobs
 
-
-# no use, just prevent intellij to remove implicit import
-placeholder = [PassiveAggressiveClassifier,
-               SGDClassifier,
-               Perceptron,
-               DecisionTreeClassifier,
-               RandomForestClassifier,
-               LogisticRegression,
-               MLPClassifier,
-               KNeighborsClassifier,
-               SVC,
-               GaussianNB,
-               ExtraTreeClassifier,
-               LinearSVC,
-               GaussianProcessClassifier,
-               GradientBoostingClassifier]
 
 if __name__ == "__main__":
     # predicting()
