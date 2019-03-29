@@ -1,5 +1,5 @@
-ZMNIST_RESULT = 'zalando-mnist-76.json';
-ORIGINAL_MNIST_RESULT = 'zalando-mnist-52.json';
+TWITTER_JSON = 'cm-55.json';
+YOUTUBE_JSON = 'cm-3.json';
 
 function parseResult(raw_str) {
     var lstBM = JSON.parse('[' + raw_str.trim().split('\n').join(',') + ']');
@@ -14,6 +14,10 @@ function parseResult(raw_str) {
         lstBM[index]['std_accuracy'] = lstBM[index]['std_accuracy'].toFixed(3);
         lstBM[index]['start_time'] = moment(lstBM[index]['start_time'] * 1000).fromNow();
         lstBM[index]['done_time'] = moment(lstBM[index]['done_time'] * 1000).fromNow();
+        lstBM[index]['processor'] = JSON.stringify(lstBM[index]['processor']);
+        lstBM[index]['processor_para'] = JSON.stringify(lstBM[index]['processor_para']);
+        lstBM[index]['topic_model'] = JSON.stringify(lstBM[index]['topic_model']);
+        lstBM[index]['topic_para'] = JSON.stringify(lstBM[index]['topic_para']);
     });
     return lstBM
 }
@@ -33,22 +37,26 @@ const vm = new Vue({
     el: '#query2sku-ui',
     data: {
         bm_data: {
-            'zmnist': [],
-            'mnist': [],
+            'twitter': [],
+            'youtube': [],
             'merge': []
         },
         sortKey: 'done_time',
-        curDataName: 'zmnist',
+        curDataName: 'twitter',
         search: '',
         sortOrder: -1,
         datasets: {
-            'zmnist': 'Fashion MNIST',
-            'mnist': 'Original MNIST',
-            'merge': 'Side-by-Side'
+            'twitter': 'Twitter',
+            'youtube': 'Youtube',
+            'merge': 'Merged'
         },
         col_name_desc: {
             'name': 'Name',
             'parameter': 'Parameter',
+            'processor': 'processor',
+            'processor_para': 'processor_para',
+            'topic_model': 'topic_model',
+            'topic_para': 'topic_para',
             'mean_accuracy': 'Accuracy (mean)',
             'std_accuracy': 'Accuracy (std)',
             'time_per_repeat': 'Training time',
@@ -56,24 +64,28 @@ const vm = new Vue({
             'score': 'Score per repeat',
             'start_time': 'Job start',
             'done_time': 'Job Done',
-            'm_mean_accuracy': 'MNIST Accuracy (mean)',
-            'm_std_accuracy': 'MNIST Accuracy (std)',
-            'z_mean_accuracy': 'Fashion Accuracy (mean)',
-            'z_std_accuracy': 'Fashion Accuracy (std)'
+            'm_mean_accuracy': 'Twitter Accuracy (mean)',
+            'm_std_accuracy': 'Twitter Accuracy (std)',
+            'z_mean_accuracy': 'YouTube Accuracy (mean)',
+            'z_std_accuracy': 'YouTube Accuracy (std)'
         },
         col_show_name: {
-            'zmnist': ['name', 'parameter', 'mean_accuracy', 'std_accuracy',
-                'time_per_repeat', 'num_repeat', 'start_time', 'done_time'],
-            'mnist': ['name', 'parameter', 'mean_accuracy', 'std_accuracy',
-                'time_per_repeat', 'num_repeat', 'start_time', 'done_time'],
+            'twitter': ['name', 'parameter', 'processor', 'processor_para', 
+            'topic_model', 'topic_para',
+            'mean_accuracy', 'std_accuracy',
+                'time_per_repeat', 'done_time'],
+            'youtube': ['name', 'parameter', 'processor', 'processor_para', 
+            'topic_model', 'topic_para',
+            'mean_accuracy', 'std_accuracy',
+                'time_per_repeat', 'done_time'],
             'merge': ['name', 'parameter', 'z_mean_accuracy', 'm_mean_accuracy', 'z_std_accuracy', 'm_std_accuracy']
         }
     },
     ready: function () {
-        loadResult(ZMNIST_RESULT, function (data) {
-            vm.bm_data['zmnist'] = data;
-            loadResult(ORIGINAL_MNIST_RESULT, function (data) {
-                vm.bm_data['mnist'] = data;
+        loadResult(TWITTER_JSON, function (data) {
+            vm.bm_data['twitter'] = data;
+            loadResult(YOUTUBE_JSON, function (data) {
+                vm.bm_data['youtube'] = data;
                 vm.bm_data['merge'] = vm.merge();
             });
         });
@@ -86,7 +98,7 @@ const vm = new Vue({
         merge: function () {
             var tmp = {};
             var result = [];
-            $.each(this.bm_data['mnist'], function (idx, data) {
+            $.each(this.bm_data['youtube'], function (idx, data) {
                 tmp[data['name'] + data['parameter']] = {
                     'm_mean_accuracy': data['mean_accuracy'],
                     'm_std_accuracy': data['std_accuracy'],
@@ -96,7 +108,7 @@ const vm = new Vue({
                     'parameter': data['parameter']
                 };
             });
-            $.each(this.bm_data['zmnist'], function (idx, data) {
+            $.each(this.bm_data['twitter'], function (idx, data) {
                 if (data['name'] + data['parameter'] in tmp) {
                     tmp[data['name'] + data['parameter']]['z_mean_accuracy'] = data['mean_accuracy'];
                     tmp[data['name'] + data['parameter']]['z_std_accuracy'] = data['std_accuracy'];

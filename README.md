@@ -1,31 +1,24 @@
-This is a repo forked from:
+Original repo:
 # Fashion-MNIST
 
 [![GitHub stars](https://img.shields.io/github/stars/zalandoresearch/fashion-mnist.svg?style=flat&label=Star)](https://github.com/zalandoresearch/fashion-mnist/)
 
-It serves as a benchmarking system for information retrieval using topic modeling techniques for text data. 
+This fork is customized for text data and enables feature extraction. It serves as a benchmarking system for information retrieval using topic modeling techniques.
 
 <details><summary>Table of Contents</summary><p>
 
-* [Introduction](#introduction)
-* [Basic Principles](#basic-principles)
 * [Benchmark](#benchmark)
-* [Contributing](#contributing)
 * [Codebase Structure](#codebase-structure)
 * [Contact](#contact)
+* [Contributing](#contributing)
 * [License](#license)
 </p></details><p></p>
 
 ## Benchmark
-We built an automatic benchmarking system based on `scikit-learn` that covers 129 classifiers (but no deep learning) with different parameters. [Find the results here](http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/).
 
-<img src="doc/img/benchmark.gif" width="100%">
+[Find the results here](https://xinyi2016.github.io/fashion-mnist/static/benchmark.html).
 
-You can reproduce the results by running `benchmark/runner.py`. We recommend building and deploying [this Dockerfile](Dockerfile). 
-
-## Contributing
-
-Thanks for your interest in contributing! There are many ways to get involved; start with our [contributor guidelines](/CONTRIBUTING.md) and then check these [open issues](https://github.com/zalandoresearch/fashion-mnist/issues) for specific tasks.
+You can reproduce the results by running `./runner.py`. We recommend building and deploying [this Dockerfile](Dockerfile). 
 
 ## Codebase Structure
 
@@ -57,13 +50,16 @@ Thanks for your interest in contributing! There are many ways to get involved; s
 ```
 
 `configs.py` is the main configuration file. 
-Variables including `LOGGER, BASELINE_PATH, JSON_LOGGER` were used in `runner.py`.
-
-
+Variables including `LOGGER, BASELINE_PATH, JSON_LOGGER` were used in `./runner.py`.
 
 
 ## Contact
+
 [To discuss the repository](https://www.linkedin.com/in/sara-zeng/) 
+
+## Contributing
+
+Thanks for your interest in contributing! There are many ways to get involved; start with our [contributor guidelines](/CONTRIBUTING.md) and then check these [open issues](https://github.com/Xinyi2016/fashion-mnist/issues) for specific tasks.
 
 ## License
 

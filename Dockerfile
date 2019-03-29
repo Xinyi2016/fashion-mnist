@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:1.12.0-gpu-py3
+FROM continuumio/anaconda3
 
 MAINTAINER xinyi.zeng@connect.polyu.hk
 
@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 ADD . /
 
 #ENTRYPOINT python ./app.py $ARGUMENTS
-ENTRYPOINT python ./benchmark/runner.py
+ENTRYPOINT python ./runner.py
